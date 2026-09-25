@@ -1,0 +1,18 @@
+services:
+  dashboard:
+    build: .
+    container_name: dashboard
+    ports:
+      - "7070:7070"
+    environment:
+      - PORT=7070
+      # - COOKIE_SECURE=auto   # 'auto' (default) | 'true' | 'false'
+    volumes:
+      # Named volume: Docker manages the storage location. To keep the data in a real
+      # folder next to this file instead, use a bind mount:
+      #   - ./data:/data
+      - dashboard_data:/data
+    restart: unless-stopped
+
+volumes:
+  dashboard_data:

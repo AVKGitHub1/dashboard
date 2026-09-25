@@ -1,0 +1,32 @@
+node_modules/
+dist/
+data/
+server/public/
+*.log
+
+# Env files — only the template is checked in.
+.env
+.env.*
+!.env.example
+
+# Runtime secrets/state the server writes into DATA_DIR. data/ above covers the default
+# location; these catch them if DATA_DIR is pointed somewhere else inside the repo.
+secret.key
+session.secret
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Keys/certs
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Personally-customized compose file (real bind-mount paths, env overrides, etc.).
+# docker-compose.yml.example is the checked-in template — copy it to get started:
+#   cp docker-compose.yml.example docker-compose.yml
+docker-compose.yml

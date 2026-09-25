@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Blocks commits that stage secret files or added lines that look like credentials.
+# Dependency-free on purpose (bash + git + grep + awk only).
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# False positive? Put "secret-scan:allow" on that line, or (last resort) git commit --no-verify.
+set -uo pipefail
+
+fail=0
+
+# 1) Files that should never be committed, even with `git add -f`.
+while IFS= read -r path; do
+  case "${path##*/}" in
+    .env.example) ;;
+    .env | .env.* | secret.key | session.secret | \
+    *.key | *.pem | *.p12 | *.pfx | id_rsa | id_ecdsa | id_ed25519 | \
+    *.db | *.db-journal | *.db-wal | *.db-shm | *.sqlite | *.sqlite3)
+      echo "secret-scan: refusing to commit $path" >&2
+      fail=1
+      ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+# 2) Added lines that look like credentials. Emits "path:line:<TAB>content" per added line.
+added_lines() {
+  git diff --cached -U0 --no-color --no-ext-diff --no-textconv \
+    --src-prefix=a/ --dst-prefix=b/ --diff-filter=ACMR |
+    awk '
+      /^diff --git / { hdr = 1; next }
+      hdr && /^\+\+\+ / { file = substr($0, 7); next }   # "+++ b/<path>"
+      /^@@/ { hdr = 0; split($3, a, ","); line = substr(a[1], 2); next }
+      !hdr && /^\+/ { print file ":" line ":\t" substr($0, 2); line++ }
+    '
+}
+
+# Well-known token formats (case-sensitive).
+known='-----BEGIN ([A-Z]+ )*PRIVATE KEY-----'
+known+='|AKIA[0-9A-Z]{16}'                                   # AWS access key id
+known+='|(^|[^A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{36,}'         # GitHub tokens
+known+='|github_pat_[A-Za-z0-9_]{50,}'
+known+='|xox[abprs]-[A-Za-z0-9-]{10,}'                       # Slack
+known+='|AIza[0-9A-Za-z_-]{35}'                              # Google API key
+known+='|(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}'              # OpenAI / Anthropic style
+known+='|[rs]k_live_[0-9A-Za-z]{20,}'                        # Stripe
+# UPPER_CASE KEY/SECRET/TOKEN/PASSWORD env var assigned a literal (not $VAR) value.
+known+='|(^|[[:space:]])(export[[:space:]]+)?[A-Z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PASSWD)[A-Z0-9_]*=[^[:space:]$][^[:space:]]{7,}'
+
+# Quoted literal assigned to a credential-ish name (case-insensitive). Values containing $
+# are skipped so interpolated template strings like `${dir}/secret` don't trip it.
+q="[\"'\`]"
+generic="(api[_-]?key|secret|passw(or)?d|access[_-]?token|auth[_-]?token|bearer)[A-Za-z0-9_]*${q}?[[:space:]]*[:=][[:space:]]*${q}[^\"'\`[:space:]$]{12,}${q}"
+
+hits=$(added_lines | { grep -E -e "$known" || true; } ; added_lines | { grep -Ei -e "$generic" || true; })
+hits=$(printf '%s\n' "$hits" | grep -v 'secret-scan:allow' | grep -v '^$' | sort -u -t: -k1,1 -k2,2n | cut -c1-200)
+
+if [ -n "$hits" ]; then
+  echo "secret-scan: possible credentials in staged changes:" >&2
+  printf '%s\n' "$hits" | sed 's/^/  /' >&2
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo >&2
+  echo "Commit blocked. Remove the secret (or unstage the file), then commit again." >&2
+  echo "False positive? Add 'secret-scan:allow' to the line, or use git commit --no-verify." >&2
+  exit 1
+fi

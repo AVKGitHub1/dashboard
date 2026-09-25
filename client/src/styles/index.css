@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-950 text-slate-100;
+  /* Widgets scroll their own content; the page itself never should sideways. Without
+     this a single over-wide child (a long ticker name, a chart mid-resize) lets the
+     whole document rubber-band horizontally on touch. */
+  overflow-x: hidden;
+}
+
+/* 100vh on mobile means "the viewport with the browser chrome hidden", so a full-height
+   shell measures taller than what's actually on screen and its last row sits behind the
+   URL bar. dvh tracks the real visible height; the plain vh line stays as the fallback
+   for browsers without dvh. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* iOS auto-zooms the page whenever a focused control's text is smaller than 16px, and
+   never zooms back out afterwards — which strands the user at 1.3x with the layout
+   pushed off-screen. Sizing only the mobile controls up avoids that without having to
+   disable pinch-zoom in the viewport meta. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  /* Per-tile controls (remove buttons) that a desktop user reveals by hovering. Touch
+     has no hover state at all — the pointer goes straight from nothing to a tap — so on
+     those devices the control is simply always visible rather than unreachable. */
+  .hover-reveal {
+    @apply hidden group-hover:block;
+  }
+
+  @media (hover: none) {
+    .hover-reveal {
+      display: block;
+    }
+  }
+}
+
+.react-grid-item.react-grid-placeholder {
+  @apply bg-blue-500/30 rounded-lg;
+}
+
+/* Applied imperatively by useDragReorder while a touch drag is over a tile — a touch
+   drag has no cursor and the dragged tile is hidden under the finger, so the drop
+   target is the only thing left to point at. */
+.reorder-drop-target {
+  outline: 2px solid theme('colors.blue.500');
+  outline-offset: -2px;
+  border-radius: theme('borderRadius.lg');
+}
