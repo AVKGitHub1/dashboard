@@ -27,7 +27,7 @@ todosRouter.post('/items', (req, res) => {
 
 const updateSchema = z.object({
   text: z.string().min(1).optional(),
-  done: z.boolean().optional(),
+  status: z.enum(['todo', 'doing', 'done']).optional(),
   sortOrder: z.number().int().optional(),
 });
 
@@ -35,9 +35,9 @@ todosRouter.put('/items/:id', (req, res) => {
   const body = updateSchema.parse(req.body);
   const existing = db.prepare('SELECT * FROM todo_items WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Item not found' });
-  db.prepare('UPDATE todo_items SET text = ?, done = ?, sort_order = ? WHERE id = ?').run(
+  db.prepare('UPDATE todo_items SET text = ?, status = ?, sort_order = ? WHERE id = ?').run(
     body.text ?? existing.text,
-    body.done === undefined ? existing.done : body.done ? 1 : 0,
+    body.status ?? existing.status,
     body.sortOrder ?? existing.sort_order,
     req.params.id
   );

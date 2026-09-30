@@ -2,13 +2,19 @@ import { db } from '../db/index.js';
 
 // Which child table (if any) belongs to each widget type, and which of its own
 // columns are meaningful to carry over into a snapshot (excludes id/widget_id, which
-// are re-derived on restore).
+// are re-derived on restore). `upgrade` brings a row from an older snapshot format up
+// to the current columns before it is inserted.
 const CHILD_TABLES = {
   weather: { table: 'weather_cities', columns: ['city_name', 'lat', 'lon', 'country', 'sort_order'] },
   stocks: { table: 'stock_watchlist', columns: ['symbol', 'display_name', 'sort_order'] },
   links: { table: 'links', columns: ['name', 'url', 'icon_path', 'sort_order'] },
   rss: { table: 'rss_feeds', columns: ['feed_url', 'title_override', 'sort_order'] },
-  notes: { table: 'todo_items', columns: ['text', 'done', 'sort_order'] },
+  notes: {
+    table: 'todo_items',
+    columns: ['text', 'status', 'sort_order'],
+    // Saves from before checklist stages only carry a done flag.
+    upgrade: (row) => (row.status ? row : { ...row, status: row.done ? 'done' : 'todo' }),
+  },
 };
 
 function captureSnapshot() {
@@ -57,7 +63,8 @@ const restoreSnapshotTx = db.transaction((items) => {
     const insertChild = db.prepare(
       `INSERT INTO ${child.table} (widget_id, ${cols.join(', ')}) VALUES (?, ${cols.map(() => '?').join(', ')})`
     );
-    for (const row of item.children) {
+    for (const saved of item.children) {
+      const row = child.upgrade ? child.upgrade(saved) : saved;
       insertChild.run(widgetId, ...cols.map((c) => row[c] ?? null));
     }
   }

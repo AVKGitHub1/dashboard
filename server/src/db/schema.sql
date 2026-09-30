@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS todo_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   widget_id INTEGER NOT NULL REFERENCES widgets(id) ON DELETE CASCADE,
   text TEXT NOT NULL,
-  done INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'doing', 'done')),
   sort_order INTEGER DEFAULT 0
 );
 
